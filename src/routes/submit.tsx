@@ -4,6 +4,8 @@ import { SiteNav } from "@/components/site-nav";
 import { eventTypeImages, type EventItem } from "@/data/events";
 import { EventCard } from "@/components/event-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker, TimePicker, TimezoneSelector } from "@/components/scheduling-fields";
+import { parse, format, isValid } from "date-fns";
 
 export const Route = createFileRoute("/submit")({
   head: () => ({
@@ -27,8 +29,6 @@ export const Route = createFileRoute("/submit")({
 const fields = [
   { name: "event_name", label: "Event name", placeholder: "Open Mic", type: "text" },
   { name: "event_type", label: "Event type", type: "select", options: ["Meetup", "Workshop", "Talk", "Performance", "Exhibition", "Competition", "Other"] },
-  { name: "date", label: "Date", placeholder: "14 AUG", type: "text" },
-  { name: "time", label: "Time", placeholder: "7:30 PM", type: "text" },
   { name: "city", label: "City", placeholder: "Agra", type: "text" },
   { name: "venue", label: "Venue", placeholder: "CSB", type: "text" },
 ];
@@ -42,6 +42,7 @@ function SubmitPage() {
     event_type: "Meetup",
     date: "",
     time: "",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     city: "",
     venue: "",
     maps_link: "",
@@ -126,13 +127,31 @@ function SubmitPage() {
     }
   };
 
+  let previewDate = "14 AUG";
+  if (formData.date) {
+    const pd = parse(formData.date, "yyyy-MM-dd", new Date());
+    if (isValid(pd)) previewDate = format(pd, "dd MMM").toUpperCase();
+  }
+
+  let previewTime = "7:30 PM";
+  if (formData.time) {
+    const parts = formData.time.split(":");
+    const hStr = parts[0];
+    const m = parts[1] || "00";
+    let h = parseInt(hStr, 10);
+    const period = h >= 12 ? "PM" : "AM";
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    previewTime = `${h12}:${m} ${period}`;
+  }
+
   // Construct dummy event for preview
   const previewEvent: EventItem = {
     id: "preview",
     title: formData.event_name || "Event Name",
     event_type: formData.event_type,
-    date: formData.date || "14 AUG",
-    time: formData.time || "7:30 PM",
+    date: previewDate,
+    time: previewTime,
     city: formData.city || "City",
     venue: formData.venue || "Venue",
     area: "",
@@ -213,6 +232,19 @@ function SubmitPage() {
                     </label>
                   );
                 })}
+
+                <label className="block group">
+                  <span className="text-[11px] uppercase tracking-widest text-ink font-semibold block mb-2 transition-colors">Date</span>
+                  <DatePicker value={formData.date} onChange={(val) => setFormData(prev => ({ ...prev, date: val }))} timezone={formData.timezone} />
+                </label>
+                <label className="block group">
+                  <span className="text-[11px] uppercase tracking-widest text-ink font-semibold block mb-2 transition-colors">Time</span>
+                  <TimePicker value={formData.time} onChange={(val) => setFormData(prev => ({ ...prev, time: val }))} />
+                </label>
+                <label className="block group sm:col-span-2">
+                  <span className="text-[11px] uppercase tracking-widest text-ink font-semibold block mb-2 transition-colors">Timezone</span>
+                  <TimezoneSelector value={formData.timezone} onChange={(val) => setFormData(prev => ({ ...prev, timezone: val }))} />
+                </label>
               </div>
 
               {/* Description */}

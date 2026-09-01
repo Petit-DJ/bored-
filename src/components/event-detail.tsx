@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mapEmbedUrl, mapLinkUrl, type EventItem } from "@/data/events";
 import { cn } from "@/lib/utils";
+import doraLogo from "@/assets/dora_logo.png";
 
 type EventDetailProps = {
   event: EventItem;
@@ -128,7 +129,18 @@ export function EventDetail({ event, onClose, visible = true }: EventDetailProps
               </p>
             )}
 
-            <div className="mt-7 flex items-center gap-4">
+            <div className="mt-6 flex items-center gap-2">
+              <img
+                src={doraLogo}
+                alt="DoraDAO"
+                className="h-[18px] w-auto grayscale opacity-70"
+              />
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Powered by DoraDAO
+              </span>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4">
               {needsRegistration ? (
                 <>
                   <a

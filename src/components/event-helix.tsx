@@ -104,6 +104,11 @@ export function EventHelix({ events, onSelect, selectedId = null }: HelixProps) 
   const [base, setBase] = useState(0);
   const baseRef = useRef(0);
 
+  const renderedBaseRef = useRef(0);
+  useLayoutEffect(() => {
+    renderedBaseRef.current = base;
+  }, [base]);
+
   useEffect(() => {
     const idx = selectedId ? events.findIndex((e) => e.id === selectedId) : -1;
     selectedIndex.current = idx >= 0 ? idx : null;
@@ -126,6 +131,10 @@ export function EventHelix({ events, onSelect, selectedId = null }: HelixProps) 
   useEffect(() => {
     let frame = 0;
     let last = performance.now();
+    let lastProgress = -999;
+    let lastP = -999;
+    let lastSelectedIndex: number | null = -999;
+    let lastBase = -999;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const tick = (now: number) => {
@@ -136,12 +145,18 @@ export function EventHelix({ events, onSelect, selectedId = null }: HelixProps) 
       // card travels toward the viewer, everything else recedes.
       const pullTarget = selectedIndex.current !== null ? 1 : 0;
       pull.current += (pullTarget - pull.current) * (1 - Math.exp(-4.2 * dt));
-      const p = pull.current < 0.001 ? 0 : Math.min(1, pull.current);
+      if (Math.abs(pullTarget - pull.current) < 0.001) {
+        pull.current = pullTarget;
+      }
+      const p = Math.max(0, Math.min(1, pull.current));
 
       // Velocity always eases back toward the ambient drift — smooth
       // deceleration, no snapping, and the helix never freezes.
       const ease = 1 - Math.exp(-RETURN_RATE * dt);
       velocity.current += (AMBIENT_SPEED - velocity.current) * ease;
+      if (Math.abs(AMBIENT_SPEED - velocity.current) < 0.001) {
+        velocity.current = AMBIENT_SPEED;
+      }
       progress.current += (reduced ? AMBIENT_SPEED * 0.35 : velocity.current) * dt * (1 - p);
 
       const g = geometry.current;
@@ -155,11 +170,26 @@ export function EventHelix({ events, onSelect, selectedId = null }: HelixProps) 
         setBase(nextBase);
       }
 
+      if (
+        progress.current === lastProgress &&
+        p === lastP &&
+        selectedIndex.current === lastSelectedIndex &&
+        renderedBaseRef.current === lastBase
+      ) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+
+      lastProgress = progress.current;
+      lastP = p;
+      lastSelectedIndex = selectedIndex.current;
+      lastBase = renderedBaseRef.current;
+
       for (let i = 0; i < g.slots; i++) {
         const el = slotRefs.current[i];
         if (!el) continue;
-        // t = signed helix position of this slot relative to the focal point
-        const t = baseRef.current + (i - half) - progress.current;
+        // Use renderedBaseRef.current so geometry matches the visible DOM
+        const t = renderedBaseRef.current + (i - half) - progress.current;
         const theta = (t * g.angleStep * Math.PI) / 180;
         const x = g.radius * Math.sin(theta);
         const z = g.radius * Math.cos(theta) - g.radius; // 0 at focus, negative behind
@@ -172,7 +202,7 @@ export function EventHelix({ events, onSelect, selectedId = null }: HelixProps) 
         let blur = Math.min(2.2, Math.max(0, distance - 1.15) * 0.62);
 
 
-        const cardIndex = (((baseRef.current + (i - half)) % count) + count) % count;
+        const cardIndex = (((renderedBaseRef.current + (i - half)) % count) + count) % count;
         const isChosen = selectedIndex.current === cardIndex;
         const s = isChosen ? p : 0;
 
@@ -273,14 +303,13 @@ export function EventHelix({ events, onSelect, selectedId = null }: HelixProps) 
               className="absolute left-0 top-0 will-change-transform"
               style={{ width: geo.cardWidth, transformStyle: "preserve-3d" }}
             >
-              <button
-                type="button"
-                tabIndex={-1}
+              <div
+                role="presentation"
                 onClick={() => onSelect(event)}
                 className="block w-full cursor-pointer text-left"
               >
                 <EventCard event={event} className="max-w-none" priority={i === half} />
-              </button>
+              </div>
             </div>
           );
         })}

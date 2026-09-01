@@ -8,6 +8,7 @@ import { ViewToggle, type DiscoveryMode } from "@/components/view-toggle";
 
 import { fetchApprovedEvents, type EventItem } from "@/data/events";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { useSearch, useNavigate } from "@tanstack/react-router";
 
 export function Discovery() {
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -32,9 +33,12 @@ export function Discovery() {
   // Once the map has been opened it stays mounted, so its centre, zoom and
   // preview survive every trip back to the helix.
   const [mapMounted, setMapMounted] = useState(false);
-  const [selected, setSelected] = useState<EventItem | null>(null);
+  const [activeEvent, setActiveEvent] = useState<EventItem | null>(null);
   // The detail layer waits for the card to travel forward before it appears.
   const [detailVisible, setDetailVisible] = useState(false);
+
+  const search = useSearch({ from: "/" });
+  const navigate = useNavigate({ from: "/" });
 
   const changeMode = useCallback((next: DiscoveryMode) => {
     if (next === "map") setMapMounted(true);
@@ -43,21 +47,48 @@ export function Discovery() {
 
   const select = useCallback(
     (event: EventItem) => {
-      setSelected(event);
-      if (reduced) {
-        setDetailVisible(true);
-        return;
-      }
-      window.setTimeout(() => setDetailVisible(true), 320);
+      navigate({ search: (prev) => ({ ...prev, event: event.id }) });
     },
-    [reduced],
+    [navigate]
   );
 
   const close = useCallback(() => {
-    setDetailVisible(false);
-    // Let the detail fade before the card settles back into its helix slot.
-    window.setTimeout(() => setSelected(null), reduced ? 0 : 240);
-  }, [reduced]);
+    navigate({
+      search: (prev) => {
+        const s = { ...prev };
+        delete s.event;
+        return s;
+      },
+    });
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!events.length) return;
+
+    const eventId = search.event;
+    let timer: number | undefined;
+
+    if (eventId) {
+      const event = events.find(e => e.id === eventId);
+      if (event) {
+        setActiveEvent(event);
+        if (reduced) {
+          setDetailVisible(true);
+        } else {
+          timer = window.setTimeout(() => setDetailVisible(true), 320);
+        }
+      }
+    } else {
+      setDetailVisible(false);
+      timer = window.setTimeout(() => setActiveEvent(null), reduced ? 0 : 240);
+    }
+
+    return () => {
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [search.event, events.length, reduced]);
 
   if (loading) {
     return (
@@ -125,7 +156,7 @@ export function Discovery() {
       <EventMap
         events={events}
         onSelect={select}
-        selectedId={selected?.id ?? null}
+        selectedId={activeEvent?.id ?? null}
         active={mode === "map"}
       />
     </div>
@@ -153,7 +184,7 @@ export function Discovery() {
               <EventMap
                 events={events}
                 onSelect={select}
-                selectedId={selected?.id ?? null}
+                selectedId={activeEvent?.id ?? null}
                 active
               />
             </div>
@@ -169,7 +200,7 @@ export function Discovery() {
               (mode === "map" ? "pointer-events-none opacity-0" : "opacity-100")
             }
           >
-            <EventHelix events={events} onSelect={select} selectedId={selected?.id ?? null} />
+            <EventHelix events={events} onSelect={select} selectedId={activeEvent?.id ?? null} />
           </div>
 
           {mapLayer}
@@ -231,7 +262,7 @@ export function Discovery() {
         </>
       )}
 
-      {selected && <EventDetail event={selected} visible={detailVisible} onClose={close} />}
+      {activeEvent && <EventDetail event={activeEvent} visible={detailVisible} onClose={close} />}
     </main>
   );
 }
