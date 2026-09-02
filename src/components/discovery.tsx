@@ -37,8 +37,8 @@ export function Discovery() {
   // The detail layer waits for the card to travel forward before it appears.
   const [detailVisible, setDetailVisible] = useState(false);
 
-  const search = useSearch({ from: "/" });
-  const navigate = useNavigate({ from: "/" });
+  const search = useSearch({ strict: false }) as { event?: string };
+  const navigate = useNavigate({ strict: false });
 
   const changeMode = useCallback((next: DiscoveryMode) => {
     if (next === "map") setMapMounted(true);
@@ -47,14 +47,14 @@ export function Discovery() {
 
   const select = useCallback(
     (event: EventItem) => {
-      navigate({ search: (prev) => ({ ...prev, event: event.id }) });
+      navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, event: event.id }) });
     },
     [navigate]
   );
 
   const close = useCallback(() => {
     navigate({
-      search: (prev) => {
+      search: (prev: Record<string, unknown>) => {
         const s = { ...prev };
         delete s.event;
         return s;
